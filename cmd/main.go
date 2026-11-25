@@ -7,9 +7,15 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+const (
+	colorRed   = "\033[31m"
+	colorGreen = "\033[32m"
+	colorReset = "\033[0m"
+)
+
 func main() {
 	if len(os.Args) > 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s [namespace]\n", os.Args[0])
+		fmt.Fprintln(os.Stderr, formatMessage("error", colorRed, fmt.Sprintf("Usage: %s [namespace]", os.Args[0])))
 		os.Exit(1)
 	}
 
@@ -24,32 +30,43 @@ func main() {
 
 	config, err := loadingRules.Load()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading kubeconfig: %v\n", err)
+		fmt.Fprintln(os.Stderr, formatMessage("error", colorRed, fmt.Sprintf("loading kubeconfig: %v", err)))
 		os.Exit(1)
 	}
 
 	currentContextName := config.CurrentContext
 	if currentContextName == "" {
-		fmt.Fprintln(os.Stderr, "Error: no current-context is set")
+		fmt.Fprintln(os.Stderr, formatMessage("error", colorRed, "no current-context is set"))
 		os.Exit(1)
 	}
 
 	currentContext, exists := config.Contexts[currentContextName]
 	if !exists {
-		fmt.Fprintf(os.Stderr, "Error: current-context %q does not exist in kubeconfig\n", currentContextName)
+		fmt.Fprintln(os.Stderr, formatMessage("error", colorRed, fmt.Sprintf("current-context %q does not exist in kubeconfig", currentContextName)))
 		os.Exit(1)
 	}
 
 	currentContext.Namespace = targetNamespace
 
 	if err := clientcmd.ModifyConfig(configAccess, *config, true); err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing kubeconfig: %v\n", err)
+		fmt.Fprintln(os.Stderr, formatMessage("error", colorRed, fmt.Sprintf("writing kubeconfig: %v", err)))
 		os.Exit(1)
 	}
 
 	if targetNamespace == "" {
-		fmt.Printf("Context %q namespace unset (now using \"default\").\n", currentContextName)
+		fmt.Println(formatMessage("info", colorGreen, "setting default namespace to: default"))
 	} else {
-		fmt.Printf("Context %q active namespace set to %q.\n", currentContextName, targetNamespace)
+		fmt.Println(formatMessage("info", colorGreen, fmt.Sprintf("setting default namespace to: %q.", targetNamespace)))
 	}
+}
+
+func formatMessage(level, color, message string) string {
+	return colorize(color, level) + ": " + message
+}
+
+func colorize(color, message string) string {
+	if _, disabled := os.LookupEnv("NO_COLOR"); disabled {
+		return message
+	}
+	return color + message + colorReset
 }
